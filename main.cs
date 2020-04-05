@@ -36,8 +36,6 @@ namespace _3dpBurnerImage2Gcode
     {
         const string ver = "v0.1";
         BurnGCode bgCode;
-        //Bitmap originalImage;
-        //Bitmap adjustedImage;
         float lastValue;//Aux for apply processing to image only when a new value is detected
         public main()
         {
@@ -151,102 +149,7 @@ namespace _3dpBurnerImage2Gcode
             }
             return true;
         }
-              
-        //Apply dithering to an image (Convert to 1 bit)
-        //private Bitmap imgDirther(Bitmap input)
-        //{
-        //    lblStatus.Text = "Dithering...";
-        //    Refresh();
-        //    lblStatus.Text = "Done";
-        //    Refresh();
-        //    return bgCode.DirtherImage();
-        //}
-        //private static double GetGreyLevel(byte r, byte g, byte b)//aux for dirthering
-        //{
-        //    return (r * 0.299 + g * 0.587 + b * 0.114) / 255;
-        //}
-        //Adjust brightness contrast and gamma of an image      
-        //private Bitmap imgBalance(Bitmap img, int brigh, int cont, int gam)
-        //{
-        //    lblStatus.Text = "Balancing...";
-        //    Refresh();
-        //    ImageAttributes imageAttributes;
-        //    float brightness = (brigh / 100.0f)+ 1.0f; 
-        //    float contrast = (cont / 100.0f) +1.0f; 
-        //    float gamma = 1/(gam / 100.0f) ; 
-        //    float adjustedBrightness = brightness - 1.0f;
-        //    Bitmap output;
-        //    // create matrix that will brighten and contrast the image
-        //    float[][] ptsArray ={
-        //    new float[] {contrast, 0, 0, 0, 0}, // scale red
-        //    new float[] {0, contrast, 0, 0, 0}, // scale green
-        //    new float[] {0, 0, contrast, 0, 0}, // scale blue
-        //    new float[] {0, 0, 0, 1.0f, 0}, // don't scale alpha
-        //    new float[] {adjustedBrightness, adjustedBrightness, adjustedBrightness, 0, 1}};
-
-        //    output = new Bitmap(img);
-        //    imageAttributes = new ImageAttributes();
-        //    imageAttributes.ClearColorMatrix();
-        //    imageAttributes.SetColorMatrix(new ColorMatrix(ptsArray), ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
-        //    imageAttributes.SetGamma(gamma, ColorAdjustType.Bitmap);
-        //    Graphics g = Graphics.FromImage(output);
-        //    g.DrawImage(output, new Rectangle(0, 0, output.Width, output.Height)
-        //    , 0, 0, output.Width, output.Height,
-        //    GraphicsUnit.Pixel, imageAttributes);
-        //    lblStatus.Text = "Done";
-        //    Refresh();
-        //    return (output);
-        //}    
-        //Return a gray scale version of an image
-        private Bitmap imgGrayscale(Bitmap original)
-        {
-            lblStatus.Text = "Gray scaling...";
-            Refresh();
-            lblStatus.Text = "Done";
-            Refresh();
-            return bgCode.GrayscaleImage();
-        }
-        //Return a inverted colors version of a image
-        //private Bitmap imgInvert(Bitmap original)
-        //{
-        //    lblStatus.Text = "Inverting...";
-        //    Refresh();
-        //    Bitmap newBitmap = new Bitmap(original.Width, original.Height);//create a blank bitmap the same size as original
-        //    Graphics g = Graphics.FromImage(newBitmap);//get a graphics object from the new image
-        //    //create the grayscale ColorMatrix
-        //    ColorMatrix colorMatrix = new ColorMatrix(
-        //       new float[][] 
-        //        {
-        //            new float[] {-1, 0, 0, 0, 0},
-        //            new float[] {0, -1, 0, 0, 0},
-        //            new float[] {0, 0, -1, 0, 0},
-        //            new float[] {0, 0, 0, 1, 0},
-        //            new float[] {1, 1, 1, 0, 1}
-        //        });
-        //    ImageAttributes attributes = new ImageAttributes();//create some image attributes
-        //    attributes.SetColorMatrix(colorMatrix);//set the color matrix attribute
-
-        //    //draw the original image on the new image using the grayscale color matrix
-        //    g.DrawImage(original, new Rectangle(0, 0, original.Width, original.Height),
-        //       0, 0, original.Width, original.Height, GraphicsUnit.Pixel, attributes);
-        //    g.Dispose();//dispose the Graphics object
-        //    lblStatus.Text = "Done";
-        //    Refresh();
-        //    return (newBitmap);
-        //}
-
-        //Resize image to desired width/height for gcode generation
-        //private Bitmap imgResize(Bitmap input, Int32 xSize, Int32 ySize)
-        //{
-        //    //Resize
-        //    Bitmap output;
-        //    lblStatus.Text = "Resizing...";
-        //    Refresh();
-        //    output= new Bitmap(input,new Size(xSize, ySize));
-        //    lblStatus.Text = "Done";
-        //    Refresh();
-        //    return(output);
-        //}
+     
         //Invoked when the user input any value for image adjust
         private void userAdjust()
         {
@@ -264,18 +167,15 @@ namespace _3dpBurnerImage2Gcode
                 cbDirthering.Text = bgCode.Dirthering;
                 //Set preview
                 autoZoomToolStripMenuItem_Click(this, null);
+                lblStatus.Text = "Done...";
+                Refresh();
             }
             catch (Exception e)
             {
                 MessageBox.Show("Error resizing/balancing image: " + e.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-        //Display a invalid values message
-        private void invalidValue()
-        {
-            lblStatus.Text = "Invalid values! Check it.";
-        }
-         //Contrast adjusted by user
+        //Contrast adjusted by user
         private void tBarContrast_Scroll(object sender, EventArgs e)
         {
             lblContrast.Text = Convert.ToString(tBarContrast.Value);
@@ -315,7 +215,6 @@ namespace _3dpBurnerImage2Gcode
         {
             ResetImage();
         }
-
         //Check if a new image width has been confirmed by user, process it.
         private void widthChangedCheck()
         {
