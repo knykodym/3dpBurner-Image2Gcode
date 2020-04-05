@@ -35,8 +35,9 @@ namespace _3dpBurnerImage2Gcode
     public partial class main : Form
     {
         const string ver = "v0.1";
-        Bitmap originalImage;
-        Bitmap adjustedImage;
+        BurnGCode bgCode;
+        //Bitmap originalImage;
+        //Bitmap adjustedImage;
         float lastValue;//Aux for apply processing to image only when a new value is detected
         public main()
         {
@@ -107,6 +108,14 @@ namespace _3dpBurnerImage2Gcode
                 cbEngravingPattern.Text=Properties.Settings.Default.pattern;
                 cbEdgeLines.Checked=Properties.Settings.Default.edgeLines;
 
+                bgCode = new BurnGCode
+                {
+                    Brightness=0,
+                    Contrast=0,
+                    Gamma =100
+                };
+                
+
             }
             catch (Exception e)
             {
@@ -115,14 +124,14 @@ namespace _3dpBurnerImage2Gcode
             }
         }
         
-        //Interpolate a 8 bit grayscale value (0-255) between min,max
+        //Interpolate a 8 bit gray scale value (0-255) between min,max
         private Int32 interpolate(Int32 grayValue, Int32 min, Int32 max)
         {
             Int32 dif=max-min;
             return (min + ((grayValue * dif) / 255));
         }
 
-        //Return true if char is a valid float digit, show eror message is not and return false
+        //Return true if char is a valid float digit, show error message is not and return false
         private bool checkDigitFloat(char ch )
         {
             if ((ch != '.') & (ch != '0') & (ch != '1') & (ch != '2') & (ch != '3') & (ch != '4') & (ch != '5') & (ch != '6') & (ch != '7') & (ch != '8') & (ch != '9') & (Convert.ToByte(ch) != 8) & (Convert.ToByte(ch) != 13))//is a 0-9 numbre or . decimal separator, backspace or enter
@@ -143,186 +152,116 @@ namespace _3dpBurnerImage2Gcode
             return true;
         }
               
-        //Apply dirthering to an image (Convert to 1 bit)
-        private Bitmap imgDirther(Bitmap input)
-        {
-            lblStatus.Text = "Dirthering...";
-            Refresh();
-            var masks = new byte[] { 0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01 };
-            var output = new Bitmap(input.Width, input.Height, PixelFormat.Format1bppIndexed);
-            var data = new sbyte[input.Width, input.Height];
-            var inputData = input.LockBits(new Rectangle(0, 0, input.Width, input.Height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
-            try
-            {
-                var scanLine = inputData.Scan0;
-                var line = new byte[inputData.Stride];
-                for (var y = 0; y < inputData.Height; y++, scanLine += inputData.Stride)
-                {
-                    Marshal.Copy(scanLine, line, 0, line.Length);
-                    for (var x = 0; x < input.Width; x++)
-                    {
-                        data[x, y] = (sbyte)(64 * (GetGreyLevel(line[x * 3 + 2], line[x * 3 + 1], line[x * 3 + 0]) - 0.5));
-                    }
-                }
-            }
-            finally
-            {
-                input.UnlockBits(inputData);
-            }
-            var outputData = output.LockBits(new Rectangle(0, 0, output.Width, output.Height), ImageLockMode.WriteOnly, PixelFormat.Format1bppIndexed);
-            try
-            {
-                var scanLine = outputData.Scan0;
-                for (var y = 0; y < outputData.Height; y++, scanLine += outputData.Stride)
-                {
-                    var line = new byte[outputData.Stride];
-                    for (var x = 0; x < input.Width; x++)
-                    {
-                        var j = data[x, y] > 0;
-                        if (j) line[x / 8] |= masks[x % 8];
-                        var error = (sbyte)(data[x, y] - (j ? 32 : -32));
-                        if (x < input.Width - 1) data[x + 1, y] += (sbyte)(7 * error / 16);
-                        if (y < input.Height - 1)
-                        {
-                            if (x > 0) data[x - 1, y + 1] += (sbyte)(3 * error / 16);
-                            data[x, y + 1] += (sbyte)(5 * error / 16);
-                            if (x < input.Width - 1) data[x + 1, y + 1] += (sbyte)(1 * error / 16);
-                        }
-                    }
-                    Marshal.Copy(line, 0, scanLine, outputData.Stride);
-                }
-            }
-            finally
-            {
-                output.UnlockBits(outputData);
-            }
-            lblStatus.Text = "Done";
-            Refresh();
-            return (output);
-        }
-        private static double GetGreyLevel(byte r, byte g, byte b)//aux for dirthering
-        {
-            return (r * 0.299 + g * 0.587 + b * 0.114) / 255;
-        }
+        //Apply dithering to an image (Convert to 1 bit)
+        //private Bitmap imgDirther(Bitmap input)
+        //{
+        //    lblStatus.Text = "Dithering...";
+        //    Refresh();
+        //    lblStatus.Text = "Done";
+        //    Refresh();
+        //    return bgCode.DirtherImage();
+        //}
+        //private static double GetGreyLevel(byte r, byte g, byte b)//aux for dirthering
+        //{
+        //    return (r * 0.299 + g * 0.587 + b * 0.114) / 255;
+        //}
         //Adjust brightness contrast and gamma of an image      
-        private Bitmap imgBalance(Bitmap img, int brigh, int cont, int gam)
-        {
-            lblStatus.Text = "Balancing...";
-            Refresh();
-            ImageAttributes imageAttributes;
-            float brightness = (brigh / 100.0f)+ 1.0f; 
-            float contrast = (cont / 100.0f) +1.0f; 
-            float gamma = 1/(gam / 100.0f) ; 
-            float adjustedBrightness = brightness - 1.0f;
-            Bitmap output;
-            // create matrix that will brighten and contrast the image
-            float[][] ptsArray ={
-            new float[] {contrast, 0, 0, 0, 0}, // scale red
-            new float[] {0, contrast, 0, 0, 0}, // scale green
-            new float[] {0, 0, contrast, 0, 0}, // scale blue
-            new float[] {0, 0, 0, 1.0f, 0}, // don't scale alpha
-            new float[] {adjustedBrightness, adjustedBrightness, adjustedBrightness, 0, 1}};
+        //private Bitmap imgBalance(Bitmap img, int brigh, int cont, int gam)
+        //{
+        //    lblStatus.Text = "Balancing...";
+        //    Refresh();
+        //    ImageAttributes imageAttributes;
+        //    float brightness = (brigh / 100.0f)+ 1.0f; 
+        //    float contrast = (cont / 100.0f) +1.0f; 
+        //    float gamma = 1/(gam / 100.0f) ; 
+        //    float adjustedBrightness = brightness - 1.0f;
+        //    Bitmap output;
+        //    // create matrix that will brighten and contrast the image
+        //    float[][] ptsArray ={
+        //    new float[] {contrast, 0, 0, 0, 0}, // scale red
+        //    new float[] {0, contrast, 0, 0, 0}, // scale green
+        //    new float[] {0, 0, contrast, 0, 0}, // scale blue
+        //    new float[] {0, 0, 0, 1.0f, 0}, // don't scale alpha
+        //    new float[] {adjustedBrightness, adjustedBrightness, adjustedBrightness, 0, 1}};
 
-            output = new Bitmap(img);
-            imageAttributes = new ImageAttributes();
-            imageAttributes.ClearColorMatrix();
-            imageAttributes.SetColorMatrix(new ColorMatrix(ptsArray), ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
-            imageAttributes.SetGamma(gamma, ColorAdjustType.Bitmap);
-            Graphics g = Graphics.FromImage(output);
-            g.DrawImage(output, new Rectangle(0, 0, output.Width, output.Height)
-            , 0, 0, output.Width, output.Height,
-            GraphicsUnit.Pixel, imageAttributes);
-            lblStatus.Text = "Done";
-            Refresh();
-            return (output);
-        }    
-        //Return a grayscale version of an image
+        //    output = new Bitmap(img);
+        //    imageAttributes = new ImageAttributes();
+        //    imageAttributes.ClearColorMatrix();
+        //    imageAttributes.SetColorMatrix(new ColorMatrix(ptsArray), ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
+        //    imageAttributes.SetGamma(gamma, ColorAdjustType.Bitmap);
+        //    Graphics g = Graphics.FromImage(output);
+        //    g.DrawImage(output, new Rectangle(0, 0, output.Width, output.Height)
+        //    , 0, 0, output.Width, output.Height,
+        //    GraphicsUnit.Pixel, imageAttributes);
+        //    lblStatus.Text = "Done";
+        //    Refresh();
+        //    return (output);
+        //}    
+        //Return a gray scale version of an image
         private Bitmap imgGrayscale(Bitmap original)
         {
-            lblStatus.Text = "Grayscaling...";
+            lblStatus.Text = "Gray scaling...";
             Refresh();
-            Bitmap newBitmap = new Bitmap(original.Width, original.Height);//create a blank bitmap the same size as original
-            Graphics g = Graphics.FromImage(newBitmap);//get a graphics object from the new image
-            //create the grayscale ColorMatrix
-            ColorMatrix colorMatrix = new ColorMatrix(
-               new float[][] 
-                {
-                    new float[] {.299f, .299f, .299f, 0, 0},
-                    new float[] {.587f, .587f, .587f, 0, 0},
-                    new float[] {.114f, .114f, .114f, 0, 0},
-                    new float[] {0, 0, 0, 1, 0},
-                    new float[] {0, 0, 0, 0, 1}
-                });
-            ImageAttributes attributes = new ImageAttributes();//create some image attributes
-            attributes.SetColorMatrix(colorMatrix);//set the color matrix attribute
-
-            //draw the original image on the new image using the grayscale color matrix
-            g.DrawImage(original, new Rectangle(0, 0, original.Width, original.Height),
-               0, 0, original.Width, original.Height, GraphicsUnit.Pixel, attributes);
-            g.Dispose();//dispose the Graphics object
             lblStatus.Text = "Done";
             Refresh();
-            return (newBitmap);
+            return bgCode.GrayscaleImage();
         }
         //Return a inverted colors version of a image
-        private Bitmap imgInvert(Bitmap original)
-        {
-            lblStatus.Text = "Inverting...";
-            Refresh();
-            Bitmap newBitmap = new Bitmap(original.Width, original.Height);//create a blank bitmap the same size as original
-            Graphics g = Graphics.FromImage(newBitmap);//get a graphics object from the new image
-            //create the grayscale ColorMatrix
-            ColorMatrix colorMatrix = new ColorMatrix(
-               new float[][] 
-                {
-                    new float[] {-1, 0, 0, 0, 0},
-                    new float[] {0, -1, 0, 0, 0},
-                    new float[] {0, 0, -1, 0, 0},
-                    new float[] {0, 0, 0, 1, 0},
-                    new float[] {1, 1, 1, 0, 1}
-                });
-            ImageAttributes attributes = new ImageAttributes();//create some image attributes
-            attributes.SetColorMatrix(colorMatrix);//set the color matrix attribute
+        //private Bitmap imgInvert(Bitmap original)
+        //{
+        //    lblStatus.Text = "Inverting...";
+        //    Refresh();
+        //    Bitmap newBitmap = new Bitmap(original.Width, original.Height);//create a blank bitmap the same size as original
+        //    Graphics g = Graphics.FromImage(newBitmap);//get a graphics object from the new image
+        //    //create the grayscale ColorMatrix
+        //    ColorMatrix colorMatrix = new ColorMatrix(
+        //       new float[][] 
+        //        {
+        //            new float[] {-1, 0, 0, 0, 0},
+        //            new float[] {0, -1, 0, 0, 0},
+        //            new float[] {0, 0, -1, 0, 0},
+        //            new float[] {0, 0, 0, 1, 0},
+        //            new float[] {1, 1, 1, 0, 1}
+        //        });
+        //    ImageAttributes attributes = new ImageAttributes();//create some image attributes
+        //    attributes.SetColorMatrix(colorMatrix);//set the color matrix attribute
 
-            //draw the original image on the new image using the grayscale color matrix
-            g.DrawImage(original, new Rectangle(0, 0, original.Width, original.Height),
-               0, 0, original.Width, original.Height, GraphicsUnit.Pixel, attributes);
-            g.Dispose();//dispose the Graphics object
-            lblStatus.Text = "Done";
-            Refresh();
-            return (newBitmap);
-        }
+        //    //draw the original image on the new image using the grayscale color matrix
+        //    g.DrawImage(original, new Rectangle(0, 0, original.Width, original.Height),
+        //       0, 0, original.Width, original.Height, GraphicsUnit.Pixel, attributes);
+        //    g.Dispose();//dispose the Graphics object
+        //    lblStatus.Text = "Done";
+        //    Refresh();
+        //    return (newBitmap);
+        //}
 
         //Resize image to desired width/height for gcode generation
-        private Bitmap imgResize(Bitmap input, Int32 xSize, Int32 ySize)
-        {
-            //Resize
-            Bitmap output;
-            lblStatus.Text = "Resizing...";
-            Refresh();
-            output= new Bitmap(input,new Size(xSize, ySize));
-            lblStatus.Text = "Done";
-            Refresh();
-            return(output);
-        }
+        //private Bitmap imgResize(Bitmap input, Int32 xSize, Int32 ySize)
+        //{
+        //    //Resize
+        //    Bitmap output;
+        //    lblStatus.Text = "Resizing...";
+        //    Refresh();
+        //    output= new Bitmap(input,new Size(xSize, ySize));
+        //    lblStatus.Text = "Done";
+        //    Refresh();
+        //    return(output);
+        //}
         //Invoked when the user input any value for image adjust
         private void userAdjust()
         {
             try
             {
-                if (adjustedImage == null) return;//if no image, do nothing
+                if (bgCode.OrgImage == null) return;//if no image, do nothing
                 //Apply resize to original image
-                Int32 xSize;//Total X pixels of resulting image for GCode generation
-                Int32 ySize;//Total Y pixels of resulting image for GCode generation
-                xSize = Convert.ToInt32(float.Parse(tbWidth.Text, CultureInfo.InvariantCulture.NumberFormat) / float.Parse(tbRes.Text, CultureInfo.InvariantCulture.NumberFormat));
-                ySize = Convert.ToInt32(float.Parse(tbHeight.Text, CultureInfo.InvariantCulture.NumberFormat) / float.Parse(tbRes.Text, CultureInfo.InvariantCulture.NumberFormat));
-                adjustedImage = imgResize(originalImage, xSize, ySize);
-                //Apply balance to adjusted (resized) image
-                adjustedImage = imgBalance(adjustedImage, tBarBrightness.Value, tBarContrast.Value, tBarGamma.Value);
-                //Reset dirthering to adjusted (resized and balanced) image
-                cbDirthering.Text = "GrayScale 8 bit";
+                bgCode.xSize = Convert.ToInt32(float.Parse(tbWidth.Text, CultureInfo.InvariantCulture.NumberFormat) / float.Parse(tbRes.Text, CultureInfo.InvariantCulture.NumberFormat));
+                bgCode.ySize = Convert.ToInt32(float.Parse(tbHeight.Text, CultureInfo.InvariantCulture.NumberFormat) / float.Parse(tbRes.Text, CultureInfo.InvariantCulture.NumberFormat));
+                lblStatus.Text = "Adjust Image...";
+                Refresh();
                 //Display image
-                pictureBox1.Image = adjustedImage;
+                pictureBox1.Image = bgCode.AdjImage;
+                //Reset dirthering to adjusted (resized and balanced) image
+                cbDirthering.Text = bgCode.Dirthering;
                 //Set preview
                 autoZoomToolStripMenuItem_Click(this, null);
             }
@@ -357,30 +296,32 @@ namespace _3dpBurnerImage2Gcode
             Refresh();
             userAdjust(); 
         }
+        private void ResetImage()
+        {
+            if (bgCode.OrgImage == null) return;//if no image, do nothing
+            bgCode.OrgImage = bgCode.ResetImage; 
+            lblStatus.Text = "Loading original image...";
+            Refresh();
+            pictureBox1.Image = bgCode.AdjImage;
+            lblStatus.Text = "Done";
+        }
         //Quick preview of the original image. Todo: use a new image container for fas return to processed image
         private void btnCheckOrig_MouseDown(object sender, MouseEventArgs e)
         {
-            if (adjustedImage == null) return;//if no image, do nothing
-            if (!File.Exists(openFileDialog1.FileName)) return;
-            lblStatus.Text = "Loading original image...";
-            Refresh();
-            pictureBox1.Image = originalImage;
-            lblStatus.Text = "Done";
+            ResetImage();
         }
-        //Reload the processed image after temporal preiew of the original image
+        //Reload the processed image after temporal preview of the original image
         private void btnCheckOrig_MouseUp(object sender, MouseEventArgs e)
         {
-            if (adjustedImage == null) return;//if no image, do nothing
-            if (!File.Exists(openFileDialog1.FileName)) return;
-            pictureBox1.Image = adjustedImage;
+            ResetImage();
         }
 
-        //Check if a new image width has been confirmad by user, process it.
+        //Check if a new image width has been confirmed by user, process it.
         private void widthChangedCheck()
         {
             try
             {
-                if (adjustedImage == null) return;//if no image, do nothing
+                if (bgCode.OrgImage == null) return;//if no image, do nothing
                 float newValue = Convert.ToSingle(tbWidth.Text, CultureInfo.InvariantCulture.NumberFormat);//Get the user input value           
                 if (newValue == lastValue) return;//if not is a new value do nothing     
                 lastValue = Convert.ToSingle(tbWidth.Text, CultureInfo.InvariantCulture.NumberFormat);
@@ -395,12 +336,12 @@ namespace _3dpBurnerImage2Gcode
                 MessageBox.Show("Check width value.", "Invalid value", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-        //Check if a new image height has been confirmad by user, process it.
+        //Check if a new image height has been confirmed by user, process it.
         private void heightChangedCheck()
         {
             try
             {
-                if (adjustedImage == null) return;//if no image, do nothing
+                if (bgCode.OrgImage == null) return;//if no image, do nothing
                 float newValue = Convert.ToSingle(tbHeight.Text, CultureInfo.InvariantCulture.NumberFormat);//Get the user input value   
                 if (newValue == lastValue) return;//if not is a new value do nothing
                 lastValue = Convert.ToSingle(tbHeight.Text, CultureInfo.InvariantCulture.NumberFormat);
@@ -414,12 +355,12 @@ namespace _3dpBurnerImage2Gcode
                 MessageBox.Show("Check height value.", "Invalid value", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-        //Check if a new image resolution has been confirmad by user, process it.
+        //Check if a new image resolution has been confirmed by user, process it.
         private void resolutionChangedCheck()
         {
             try
             {
-                if (adjustedImage == null) return;//if no image, do nothing
+                if (bgCode.OrgImage == null) return;//if no image, do nothing
                 float newValue = Convert.ToSingle(tbRes.Text, CultureInfo.InvariantCulture.NumberFormat);//Get the user input value
                 if (newValue == lastValue) return;//if not is a new value do nothing
                 lastValue = Convert.ToSingle(tbRes.Text, CultureInfo.InvariantCulture.NumberFormat);
@@ -429,13 +370,13 @@ namespace _3dpBurnerImage2Gcode
                 MessageBox.Show("Check resolution value.", "Invalid value", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-        //CheckBox lockAspectRatio checked. Set as mandatory the user setted width and calculate the height by using the original aspect ratio
+        //CheckBox lockAspectRatio checked. Set as mandatory the user settled width and calculate the height by using the original aspect ratio
         private void cbLockRatio_CheckedChanged(object sender, EventArgs e)
         {
             if (cbLockRatio.Checked)
             {
                 tbHeight.Text = Convert.ToString((Convert.ToSingle(tbWidth.Text, CultureInfo.InvariantCulture.NumberFormat) / ratio), CultureInfo.InvariantCulture.NumberFormat);//Initialize y size
-                if (adjustedImage == null) return;//if no image, do nothing
+                if (bgCode.OrgImage == null) return;//if no image, do nothing
                 userAdjust();
             }
         }
@@ -549,17 +490,17 @@ namespace _3dpBurnerImage2Gcode
         {
             //Generate Gcode line
             line = "";
-            if (coordX != lastX)//Add X coord to line if is diferent from previous             
+            if (coordX != lastX)//Add X coord to line if is different from previous             
             {
                 coordXStr = string.Format(CultureInfo.InvariantCulture.NumberFormat, "{0:0.###}", coordX);
                 line += 'X' + coordXStr;
             }
-            if (coordY != lastY)//Add Y coord to line if is diferent from previous
+            if (coordY != lastY)//Add Y coord to line if is different from previous
             {
                 coordYStr = string.Format(CultureInfo.InvariantCulture.NumberFormat, "{0:0.###}", coordY);
                 line += 'Y' + coordYStr;
             }
-            if (sz != lastSz)//Add power value to line if is diferent from previous
+            if (sz != lastSz)//Add power value to line if is different from previous
             {
                 szStr = szChar + Convert.ToString(sz);
                 line += szStr;
@@ -568,14 +509,14 @@ namespace _3dpBurnerImage2Gcode
         //Generate button click
         private void btnGenerate_Click(object sender, EventArgs e)
         {
-            if (adjustedImage == null) return;//if no image, do nothing
+            if (bgCode.OrgImage == null) return;//if no image, do nothing
             float resol = Convert.ToSingle(tbRes.Text, CultureInfo.InvariantCulture.NumberFormat);//Resolution (or laser spot size)
             float w = Convert.ToSingle(tbWidth.Text, CultureInfo.InvariantCulture.NumberFormat);//Get the user input value only for check for cancel if not valid         
             float h = Convert.ToSingle(tbHeight.Text, CultureInfo.InvariantCulture.NumberFormat);//Get the user input value only for check for cancel if not valid              
 
-            if ((resol <= 0) | (adjustedImage.Width < 1) | (adjustedImage.Height < 1) | (w < 1) | (h < 1))
+            if ((resol <= 0) | (bgCode.xSize < 1) | (bgCode.ySize < 1) | (w < 1) | (h < 1))
             {
-                MessageBox.Show("Check widht, height and resolution values.", "Invalid value", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Check width, height and resolution values.", "Invalid value", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
             if (Convert.ToInt32(tbFeedRate.Text) < 1)
@@ -621,19 +562,19 @@ namespace _3dpBurnerImage2Gcode
             if (imperialinToolStripMenuItem.Checked) line = "G20\r";//Imperial units
                 else line = "G21\r";//Metric units
             fileLines.Add(line);
-            line = "F" + tbFeedRate.Text + "\r";//Feedrate
+            line = "F" + tbFeedRate.Text + "\r";//Feed rate
             fileLines.Add(line);
 
             //Generate picture Gcode
-            Int32 pixTot = adjustedImage.Width * adjustedImage.Height;
+            Int32 pixTot = bgCode.xSize * bgCode.ySize;
             Int32 pixBurned = 0;
             //////////////////////////////////////////////
-            // Generate Gcode lines by Horozontal scanning
+            // Generate Gcode lines by Horizontal scanning
             //////////////////////////////////////////////
             if (cbEngravingPattern.Text == "Horizontal scanning")
             {
-                //Goto rapid move to lef top corner
-                line = "G0X0Y" + string.Format(CultureInfo.InvariantCulture.NumberFormat, "{0:0.###}", adjustedImage.Height * Convert.ToSingle(tbRes.Text, CultureInfo.InvariantCulture.NumberFormat));
+                //Goto rapid move to left top corner
+                line = "G0X0Y" + string.Format(CultureInfo.InvariantCulture.NumberFormat, "{0:0.###}", bgCode.ySize * Convert.ToSingle(tbRes.Text, CultureInfo.InvariantCulture.NumberFormat));
                 fileLines.Add(line);
                 line = "G1\r";//G1 mode
                 fileLines.Add(line);
@@ -641,18 +582,18 @@ namespace _3dpBurnerImage2Gcode
                 fileLines.Add(line);
 
                 //Start image
-                lin = adjustedImage.Height - 1;//top tile
+                lin = bgCode.ySize - 1;//top tile
                 col = 0;//Left pixel
                 while (lin >= 0)
                 {
                     //Y coordinate
                     coordY = resol * (float)lin;
-                    while (col < adjustedImage.Width)//From left to right
+                    while (col < bgCode.xSize)//From left to right
                     {
                         //X coordinate
                         coordX = resol * (float)col;
                         //Power value
-                        Color cl = adjustedImage.GetPixel(col, (adjustedImage.Height - 1) - lin);//Get pixel color
+                        Color cl = bgCode.AdjImage.GetPixel(col, (bgCode.ySize - 1) - lin);//Get pixel color
                         sz = 255 - cl.R;
                         sz = interpolate(sz, Convert.ToInt32(tbLaserMin.Text), Convert.ToInt32(tbLaserMax.Text));
                         generateLine();
@@ -675,7 +616,7 @@ namespace _3dpBurnerImage2Gcode
                         //X coordinate
                         coordX = resol * (float)col;
                         //Power value
-                        Color cl = adjustedImage.GetPixel(col, (adjustedImage.Height - 1) - lin);//Get pixel color
+                        Color cl = bgCode.AdjImage.GetPixel(col, (bgCode.ySize - 1) - lin);//Get pixel color
                         sz = 255 - cl.R;
                         sz = interpolate(sz, Convert.ToInt32(tbLaserMin.Text), Convert.ToInt32(tbLaserMax.Text));
                         generateLine();
@@ -702,7 +643,7 @@ namespace _3dpBurnerImage2Gcode
             //////////////////////////////////////////////
             else
             {
-                //Goto rapid move to lef top corner
+                //Goto rapid move to left top corner
                 line = "G0X0Y0";
                 fileLines.Add(line);
                 line = "G1\r";//G1 mode
@@ -713,76 +654,74 @@ namespace _3dpBurnerImage2Gcode
                 //Start image
                 col = 0;
                 lin = 0;
-            while((col<adjustedImage.Width)|(lin<adjustedImage.Height))          
-            {
-                while ((col < adjustedImage.Width)&(lin>=0))
+                while ((col < bgCode.xSize)|(lin<bgCode.ySize))          
                 {
-                    //Y coordinate
-                    coordY = resol * (float)lin;
-                    //X coordinate
-                    coordX = resol * (float)col;
+                    while ((col < bgCode.xSize)&(lin>=0))
+                    {
+                        //Y coordinate
+                        coordY = resol * (float)lin;
+                        //X coordinate
+                        coordX = resol * (float)col;
 
-                    //Power value
-                    Color cl = adjustedImage.GetPixel(col, (adjustedImage.Height - 1) - lin);//Get pixel color
-                    sz = 255 - cl.R;
-                    sz = interpolate(sz, Convert.ToInt32(tbLaserMin.Text), Convert.ToInt32(tbLaserMax.Text));
+                        //Power value
+                        Color cl = bgCode.AdjImage.GetPixel(col, (bgCode.ySize - 1) - lin);//Get pixel color
+                        sz = 255 - cl.R;
+                        sz = interpolate(sz, Convert.ToInt32(tbLaserMin.Text), Convert.ToInt32(tbLaserMax.Text));
 
-                    generateLine();
-                    pixBurned++;
+                        generateLine();
+                        pixBurned++;
 
-                    //adjustedImage.SetPixel(col, (adjustedImage.Height-1)-lin, Color.Red);
-                    //pictureBox1.Image = adjustedImage;
-                    //Refresh();
+                        //adjustedImage.SetPixel(col, (adjustedImage.Height-1)-lin, Color.Red);
+                        //pictureBox1.Image = adjustedImage;
+                        //Refresh();
 
-                    if (!string.IsNullOrEmpty(line)) fileLines.Add(line);
-                    lastX = coordX;
-                    lastY = coordY;
-                    lastSz = sz;
+                        if (!string.IsNullOrEmpty(line)) fileLines.Add(line);
+                        lastX = coordX;
+                        lastY = coordY;
+                        lastSz = sz;
 
-                    col++;
-                    lin--;
-                }
-                col--;
-                lin++;
-
-                if (col >= adjustedImage.Width-1) lin++;
-                else col++;
-                 while ((col >=0)&(lin<adjustedImage.Height))
-                {
-                    //Y coordinate
-                    coordY = resol * (float)lin;
-                    //X coordinate
-                    coordX = resol * (float)col;
-
-                    //Power value
-                    Color cl = adjustedImage.GetPixel(col, (adjustedImage.Height - 1) - lin);//Get pixel color
-                    sz = 255 - cl.R;
-                    sz = interpolate(sz, Convert.ToInt32(tbLaserMin.Text), Convert.ToInt32(tbLaserMax.Text));
-
-                    generateLine();
-                    pixBurned++;
-                    
-                    //adjustedImage.SetPixel(col, (adjustedImage.Height-1)-lin, Color.Red);
-                    //pictureBox1.Image = adjustedImage;
-                   // Refresh();
-
-                    if (!string.IsNullOrEmpty(line)) fileLines.Add(line);
-                    lastX = coordX;
-                    lastY = coordY;
-                    lastSz = sz;
-
+                        col++;
+                        lin--;
+                    }
                     col--;
                     lin++;
+
+                    if (col >= bgCode.xSize-1) lin++;
+                    else col++;
+                    while ((col >=0)&(lin<bgCode.ySize))
+                    {
+                        //Y coordinate
+                        coordY = resol * (float)lin;
+                        //X coordinate
+                        coordX = resol * (float)col;
+
+                        //Power value
+                        Color cl = bgCode.AdjImage.GetPixel(col, (bgCode.ySize - 1) - lin);//Get pixel color
+                        sz = 255 - cl.R;
+                        sz = interpolate(sz, Convert.ToInt32(tbLaserMin.Text), Convert.ToInt32(tbLaserMax.Text));
+
+                        generateLine();
+                        pixBurned++;
+                    
+                        //adjustedImage.SetPixel(col, (adjustedImage.Height-1)-lin, Color.Red);
+                        //pictureBox1.Image = adjustedImage;
+                       // Refresh();
+
+                        if (!string.IsNullOrEmpty(line)) fileLines.Add(line);
+                        lastX = coordX;
+                        lastY = coordY;
+                        lastSz = sz;
+
+                        col--;
+                        lin++;
+                    }
+                    col++;
+                    lin--;
+                    if (lin >= bgCode.ySize-1) col++;
+                    else lin++;
+                    lblStatus.Text = "Generating file... " + Convert.ToString((pixBurned * 100) / pixTot) + "%"; 
+                    Refresh();
                 }
-                 col++;
-                 lin--;
-                 if (lin >= adjustedImage.Height-1) col++;
-                 else lin++;
-                 lblStatus.Text = "Generating file... " + Convert.ToString((pixBurned * 100) / pixTot) + "%"; 
-                 Refresh();
-            }
-
-
             }
             //Edge lines
             if (cbEdgeLines.Checked)
@@ -793,11 +732,11 @@ namespace _3dpBurnerImage2Gcode
                 fileLines.Add(line);
                 line = "M3S" + tbLaserMax.Text + "\r";
                 fileLines.Add(line);
-                line = "G1X0Y"+string.Format(CultureInfo.InvariantCulture.NumberFormat,"{0:0.###}",(adjustedImage.Height-1)*resol)+"\r";
+                line = "G1X0Y"+string.Format(CultureInfo.InvariantCulture.NumberFormat,"{0:0.###}",(bgCode.ySize-1)*resol)+"\r";
                 fileLines.Add(line);
-                line = "G1X" + string.Format(CultureInfo.InvariantCulture.NumberFormat, "{0:0.###}", (adjustedImage.Width - 1) * resol) + "Y" +string.Format(CultureInfo.InvariantCulture.NumberFormat, "{0:0.###}",(adjustedImage.Height - 1) * resol) + "\r";
+                line = "G1X" + string.Format(CultureInfo.InvariantCulture.NumberFormat, "{0:0.###}", (bgCode.xSize - 1) * resol) + "Y" +string.Format(CultureInfo.InvariantCulture.NumberFormat, "{0:0.###}",(bgCode.ySize- 1) * resol) + "\r";
                 fileLines.Add(line);
-                line = "G1X" + string.Format(CultureInfo.InvariantCulture.NumberFormat, "{0:0.###}",(adjustedImage.Width - 1)*resol) + "Y0\r";
+                line = "G1X" + string.Format(CultureInfo.InvariantCulture.NumberFormat, "{0:0.###}",(bgCode.xSize - 1)*resol) + "Y0\r";
                 fileLines.Add(line);
                 line = "G1X0Y0\r";
                 fileLines.Add(line);
@@ -817,83 +756,76 @@ namespace _3dpBurnerImage2Gcode
             File.WriteAllLines(saveFileDialog1.FileName , fileLines);
             lblStatus.Text = "Done (" + Convert.ToString(pixBurned) + "/" + Convert.ToString(pixTot)+")";
         }
-        //Horizontal mirroing
+        //Horizontal mirroring
         private void btnHorizMirror_Click(object sender, EventArgs e)
         {
-            if (adjustedImage == null) return;//if no image, do nothing
-            lblStatus.Text = "Mirroing...";
+            if (bgCode.OrgImage == null) return;//if no image, do nothing
+            lblStatus.Text = "Mirroring...";
             Refresh();
-            adjustedImage.RotateFlip(RotateFlipType.RotateNoneFlipX);
-            originalImage.RotateFlip(RotateFlipType.RotateNoneFlipX);
-            pictureBox1.Image = adjustedImage;
+            bgCode.OrgImage.RotateFlip(RotateFlipType.RotateNoneFlipX);
+            pictureBox1.Image = bgCode.AdjImage;
             lblStatus.Text = "Done";
         }
-        //Vertical mirroing
+        //Vertical mirroring
         private void btnVertMirror_Click(object sender, EventArgs e)
         {
-            if (adjustedImage == null) return;//if no image, do nothing
-            lblStatus.Text = "Mirroing...";
+            if (bgCode.OrgImage == null) return;//if no image, do nothing
+            lblStatus.Text = "Mirroring...";
             Refresh();
-            adjustedImage.RotateFlip(RotateFlipType.RotateNoneFlipY);
-            originalImage.RotateFlip(RotateFlipType.RotateNoneFlipY);
-            pictureBox1.Image = adjustedImage;
+            bgCode.OrgImage.RotateFlip(RotateFlipType.RotateNoneFlipY);
+            pictureBox1.Image = bgCode.AdjImage;
             lblStatus.Text = "Done";
         }
         //Rotate right
         private void btnRotateRight_Click(object sender, EventArgs e)
         {
-            if (adjustedImage == null) return;//if no image, do nothing
+            if (bgCode.OrgImage == null) return;//if no image, do nothing
             lblStatus.Text = "Rotating...";
             Refresh();
-            adjustedImage.RotateFlip(RotateFlipType.Rotate90FlipNone);
-            originalImage.RotateFlip(RotateFlipType.Rotate90FlipNone);
+            bgCode.OrgImage.RotateFlip(RotateFlipType.Rotate90FlipNone);
             ratio = 1 / ratio;
             string s = tbHeight.Text;
             tbHeight.Text = tbWidth.Text;
             tbWidth.Text = s;
-            pictureBox1.Image = adjustedImage;
+            pictureBox1.Image = bgCode.AdjImage;
             autoZoomToolStripMenuItem_Click(this, null);
             lblStatus.Text = "Done";
         }
         //Rotate left
         private void btnRotateLeft_Click(object sender, EventArgs e)
         {
-            if (adjustedImage == null) return;//if no image, do nothing
+            if (bgCode.OrgImage == null) return;//if no image, do nothing
             lblStatus.Text = "Rotating...";
             Refresh();
-            adjustedImage.RotateFlip(RotateFlipType.Rotate270FlipNone);
-            originalImage.RotateFlip(RotateFlipType.Rotate270FlipNone);
+            bgCode.OrgImage.RotateFlip(RotateFlipType.Rotate270FlipNone);
             ratio = 1 / ratio;
             string s = tbHeight.Text;
             tbHeight.Text = tbWidth.Text;
             tbWidth.Text = s;
-            pictureBox1.Image = adjustedImage;
+            pictureBox1.Image = bgCode.AdjImage ;
             autoZoomToolStripMenuItem_Click(this, null);
             lblStatus.Text = "Done";
         }
         //Invert image color
         private void btnInvert_Click(object sender, EventArgs e)
         {
-            if (adjustedImage == null) return;//if no image, do nothing
-            adjustedImage = imgInvert(adjustedImage);
-            originalImage= imgInvert(originalImage);
-            pictureBox1.Image = adjustedImage;
+            if (bgCode.OrgImage == null) return;//if no image, do nothing
+            pictureBox1.Image = bgCode.InvertImage();
         }
 
         private void cbDirthering_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (adjustedImage == null) return;//if no image, do nothing
+            if (bgCode.OrgImage == null) return;//if no image, do nothing
             if (cbDirthering.Text == "Dirthering FS 1 bit")
             {
-                lblStatus.Text = "Dirtering...";
-                adjustedImage = imgDirther(adjustedImage);
-                pictureBox1.Image = adjustedImage;
+                lblStatus.Text = "Dirthering...";
+                pictureBox1.Image = bgCode.DirtherImage();
                 lblStatus.Text = "Done";
             }
             else
                 userAdjust();
         }
-        //Feedrate Text changed
+        //Feed rate Text changed
         private void tbFeedRate_KeyPress(object sender, KeyPressEventArgs e)
         {
             //Prevent any not allowed char
@@ -970,16 +902,18 @@ namespace _3dpBurnerImage2Gcode
                 if (!File.Exists(openFileDialog1.FileName)) return;
                 lblStatus.Text = "Opening file...";
                 Refresh();
-                tBarBrightness.Value = 0;
-                tBarContrast.Value = 0;
-                tBarGamma.Value = 100;
-                lblBrightness.Text = Convert.ToString(tBarBrightness.Value);
-                lblContrast.Text = Convert.ToString(tBarContrast.Value);
-                lblGamma.Text = Convert.ToString(tBarGamma.Value / 100.0f);
-                originalImage = new Bitmap(Image.FromFile(openFileDialog1.FileName));
-                originalImage = imgGrayscale(originalImage);
-                adjustedImage = new Bitmap(originalImage);
-                ratio = (originalImage.Width + 0.0f) / originalImage.Height;//Save ratio for future use if needled
+                if (bgCode.ResetImage != null)
+                {
+                    bgCode.ResetImage = null;
+                }
+                bgCode.OrgImage = new Bitmap(Image.FromFile(openFileDialog1.FileName));
+                tBarBrightness.Value = bgCode.Brightness;
+                tBarContrast.Value = bgCode.Contrast;
+                tBarGamma.Value = bgCode.Gamma;
+                lblBrightness.Text = bgCode.BrightnessText ;
+                lblContrast.Text = bgCode.ContrastText ;
+                lblGamma.Text = bgCode.GammaText ;
+                ratio = (bgCode.xSize + 0.0f) / bgCode.ySize;//Save ratio for future use if needled
                 if (cbLockRatio.Checked) tbHeight.Text = Convert.ToString((Convert.ToSingle(tbWidth.Text) / ratio), CultureInfo.InvariantCulture.NumberFormat);//Initialize y size
                 userAdjust();
                 lblStatus.Text = "Done";
@@ -995,7 +929,7 @@ namespace _3dpBurnerImage2Gcode
             Close();
         }
         //On form closing
-        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        private void main_FormClosing(object sender, FormClosingEventArgs e)
         {
             saveSettings();
         }
