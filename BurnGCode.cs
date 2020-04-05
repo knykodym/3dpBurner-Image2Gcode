@@ -203,6 +203,12 @@ namespace _3dpBurnerImage2Gcode
             return adjustedImage;
         }
 
+        public void RotateFlip(RotateFlipType r)
+        {
+            if (orgImage == null) return;
+            //RotateFlip
+            orgImage.RotateFlip(r);      
+        }
     }
 
 }

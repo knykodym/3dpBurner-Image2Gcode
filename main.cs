@@ -36,7 +36,7 @@ namespace _3dpBurnerImage2Gcode
     {
         const string ver = "v0.1";
         BurnGCode bgCode;
-        float lastValue;//Aux for apply processing to image only when a new value is detected
+        float lastRatioValue;//Aux for apply processing to image only when a new value is detected
         public main()
         {
             InitializeComponent();
@@ -155,20 +155,19 @@ namespace _3dpBurnerImage2Gcode
         {
             try
             {
+                Refresh();
                 if (bgCode.OrgImage == null) return;//if no image, do nothing
                 //Apply resize to original image
                 bgCode.xSize = Convert.ToInt32(float.Parse(tbWidth.Text, CultureInfo.InvariantCulture.NumberFormat) / float.Parse(tbRes.Text, CultureInfo.InvariantCulture.NumberFormat));
                 bgCode.ySize = Convert.ToInt32(float.Parse(tbHeight.Text, CultureInfo.InvariantCulture.NumberFormat) / float.Parse(tbRes.Text, CultureInfo.InvariantCulture.NumberFormat));
-                lblStatus.Text = "Adjust Image...";
-                Refresh();
+                SetStatus("Adjust Image...");
                 //Display image
-                pictureBox1.Image = bgCode.AdjImage;
+                UpdateImage(false);
                 //Reset dirthering to adjusted (resized and balanced) image
                 cbDirthering.Text = bgCode.Dirthering;
                 //Set preview
                 autoZoomToolStripMenuItem_Click(this, null);
-                lblStatus.Text = "Done...";
-                Refresh();
+                SetStatus("Done");
             }
             catch (Exception e)
             {
@@ -179,31 +178,27 @@ namespace _3dpBurnerImage2Gcode
         private void tBarContrast_Scroll(object sender, EventArgs e)
         {
             lblContrast.Text = Convert.ToString(tBarContrast.Value);
-            Refresh();
             userAdjust(); 
         }
         //Brightness adjusted by user
         private void tBarBrightness_Scroll(object sender, EventArgs e)
         {
             lblBrightness.Text = Convert.ToString(tBarBrightness.Value);
-            Refresh();
             userAdjust();          
         }
         //Gamma adjusted by user
         private void tBarGamma_Scroll(object sender, EventArgs e)
         {
             lblGamma.Text = Convert.ToString(tBarGamma.Value/100.0f);
-            Refresh();
             userAdjust(); 
         }
         private void ResetImage()
         {
             if (bgCode.OrgImage == null) return;//if no image, do nothing
             bgCode.OrgImage = bgCode.ResetImage; 
-            lblStatus.Text = "Loading original image...";
-            Refresh();
-            pictureBox1.Image = bgCode.AdjImage;
-            lblStatus.Text = "Done";
+            SetStatus("Loading original image...");
+            UpdateImage(false);
+            SetStatus("Done");
         }
         //Quick preview of the original image. Todo: use a new image container for fas return to processed image
         private void btnCheckOrig_MouseDown(object sender, MouseEventArgs e)
@@ -222,8 +217,8 @@ namespace _3dpBurnerImage2Gcode
             {
                 if (bgCode.OrgImage == null) return;//if no image, do nothing
                 float newValue = Convert.ToSingle(tbWidth.Text, CultureInfo.InvariantCulture.NumberFormat);//Get the user input value           
-                if (newValue == lastValue) return;//if not is a new value do nothing     
-                lastValue = Convert.ToSingle(tbWidth.Text, CultureInfo.InvariantCulture.NumberFormat);
+                if (newValue == lastRatioValue) return;//if not is a new value do nothing     
+                lastRatioValue = Convert.ToSingle(tbWidth.Text, CultureInfo.InvariantCulture.NumberFormat);
                 if (cbLockRatio.Checked)
                 {
                     tbHeight.Text = Convert.ToString((newValue / ratio), CultureInfo.InvariantCulture.NumberFormat);
@@ -242,8 +237,8 @@ namespace _3dpBurnerImage2Gcode
             {
                 if (bgCode.OrgImage == null) return;//if no image, do nothing
                 float newValue = Convert.ToSingle(tbHeight.Text, CultureInfo.InvariantCulture.NumberFormat);//Get the user input value   
-                if (newValue == lastValue) return;//if not is a new value do nothing
-                lastValue = Convert.ToSingle(tbHeight.Text, CultureInfo.InvariantCulture.NumberFormat);
+                if (newValue == lastRatioValue) return;//if not is a new value do nothing
+                lastRatioValue = Convert.ToSingle(tbHeight.Text, CultureInfo.InvariantCulture.NumberFormat);
                 if (cbLockRatio.Checked)
                 {
                     tbWidth.Text = Convert.ToString((newValue * ratio), CultureInfo.InvariantCulture.NumberFormat);
@@ -261,8 +256,8 @@ namespace _3dpBurnerImage2Gcode
             {
                 if (bgCode.OrgImage == null) return;//if no image, do nothing
                 float newValue = Convert.ToSingle(tbRes.Text, CultureInfo.InvariantCulture.NumberFormat);//Get the user input value
-                if (newValue == lastValue) return;//if not is a new value do nothing
-                lastValue = Convert.ToSingle(tbRes.Text, CultureInfo.InvariantCulture.NumberFormat);
+                if (newValue == lastRatioValue) return;//if not is a new value do nothing
+                lastRatioValue = Convert.ToSingle(tbRes.Text, CultureInfo.InvariantCulture.NumberFormat);
                 userAdjust();
             }
             catch {
@@ -283,7 +278,7 @@ namespace _3dpBurnerImage2Gcode
         private void Form1_Load(object sender, EventArgs e)
         {
             Text = "3dpBurner Image2Gcode " + ver;
-            lblStatus.Text = "Done";
+            SetStatus("Done");
             loadSettings();
 
             autoZoomToolStripMenuItem_Click(this, null);//Set preview zoom mode
@@ -351,27 +346,27 @@ namespace _3dpBurnerImage2Gcode
         {
             try
             {
-                lastValue = Convert.ToSingle(tbWidth.Text, CultureInfo.InvariantCulture.NumberFormat);
+                lastRatioValue = Convert.ToSingle(tbWidth.Text, CultureInfo.InvariantCulture.NumberFormat);
             }
-            catch { }
+            catch (Exception ex) { Console.WriteLine(ex);}
         }
         //Height control get focus. Backup actual value for check changes.
         private void tbHeight_Enter(object sender, EventArgs e)
         {
             try
             {
-                lastValue = Convert.ToSingle(tbHeight.Text, CultureInfo.InvariantCulture.NumberFormat);
+                lastRatioValue = Convert.ToSingle(tbHeight.Text, CultureInfo.InvariantCulture.NumberFormat);
             }
-            catch { }
+            catch (Exception ex) { Console.WriteLine(ex);}
         }
         //Resolution control get focus. Backup actual value for check changes.
         private void tbRes_Enter(object sender, EventArgs e)
         {
             try
             {
-                lastValue = Convert.ToSingle(tbRes.Text, CultureInfo.InvariantCulture.NumberFormat);
+                lastRatioValue = Convert.ToSingle(tbRes.Text, CultureInfo.InvariantCulture.NumberFormat);
             }
-            catch { }
+            catch (Exception ex) { Console.WriteLine(ex);}
         }
         //Generate a "minimalist" gcode line based on the actual and last coordinates and laser power
         string line;
@@ -428,8 +423,7 @@ namespace _3dpBurnerImage2Gcode
             Int32 lin;//top/botom pixel
             Int32 col;//Left/right pixel
 
-            lblStatus.Text="Generating file...";
-            Refresh();
+            SetStatus("Generating file...");
 
             List<string> fileLines;
             fileLines = new List<string>();
@@ -532,8 +526,7 @@ namespace _3dpBurnerImage2Gcode
                     }
                     col++;
                     lin--;
-                    lblStatus.Text = "Generating file... " + Convert.ToString((pixBurned*100)/pixTot ) + "%";
-                    Refresh();
+                    SetStatus("Generating file... " + Convert.ToString((pixBurned*100)/pixTot ) + "%");
                 }
 
             }
@@ -618,8 +611,7 @@ namespace _3dpBurnerImage2Gcode
                     lin--;
                     if (lin >= bgCode.ySize-1) col++;
                     else lin++;
-                    lblStatus.Text = "Generating file... " + Convert.ToString((pixBurned * 100) / pixTot) + "%"; 
-                    Refresh();
+                    SetStatus("Generating file... " + Convert.ToString((pixBurned * 100) / pixTot) + "%"); 
                 }
             }
             //Edge lines
@@ -649,67 +641,49 @@ namespace _3dpBurnerImage2Gcode
             {
                 fileLines.Add(s);
             }
-            lblStatus.Text="Saving file...";
-            Refresh();
+            SetStatus("Saving file...");
             //Save file
             File.WriteAllLines(saveFileDialog1.FileName , fileLines);
-            lblStatus.Text = "Done (" + Convert.ToString(pixBurned) + "/" + Convert.ToString(pixTot)+")";
+            SetStatus("Done (" + Convert.ToString(pixBurned) + "/" + Convert.ToString(pixTot)+")");
         }
         //Horizontal mirroring
         private void btnHorizMirror_Click(object sender, EventArgs e)
         {
-            if (bgCode.OrgImage == null) return;//if no image, do nothing
-            lblStatus.Text = "Mirroring...";
-            Refresh();
-            bgCode.OrgImage.RotateFlip(RotateFlipType.RotateNoneFlipX);
-            pictureBox1.Image = bgCode.AdjImage;
-            lblStatus.Text = "Done";
+            RotateImage(RotateFlipType.RotateNoneFlipX, false);
         }
         //Vertical mirroring
         private void btnVertMirror_Click(object sender, EventArgs e)
         {
-            if (bgCode.OrgImage == null) return;//if no image, do nothing
-            lblStatus.Text = "Mirroring...";
-            Refresh();
-            bgCode.OrgImage.RotateFlip(RotateFlipType.RotateNoneFlipY);
-            pictureBox1.Image = bgCode.AdjImage;
-            lblStatus.Text = "Done";
+            RotateImage(RotateFlipType.RotateNoneFlipY, false);
         }
         //Rotate right
         private void btnRotateRight_Click(object sender, EventArgs e)
         {
-            if (bgCode.OrgImage == null) return;//if no image, do nothing
-            lblStatus.Text = "Rotating...";
-            Refresh();
-            bgCode.OrgImage.RotateFlip(RotateFlipType.Rotate90FlipNone);
-            ratio = 1 / ratio;
-            string s = tbHeight.Text;
-            tbHeight.Text = tbWidth.Text;
-            tbWidth.Text = s;
-            pictureBox1.Image = bgCode.AdjImage;
+            RotateImage(RotateFlipType.Rotate90FlipNone, true);
             autoZoomToolStripMenuItem_Click(this, null);
-            lblStatus.Text = "Done";
         }
         //Rotate left
         private void btnRotateLeft_Click(object sender, EventArgs e)
         {
-            if (bgCode.OrgImage == null) return;//if no image, do nothing
-            lblStatus.Text = "Rotating...";
-            Refresh();
-            bgCode.OrgImage.RotateFlip(RotateFlipType.Rotate270FlipNone);
-            ratio = 1 / ratio;
-            string s = tbHeight.Text;
-            tbHeight.Text = tbWidth.Text;
-            tbWidth.Text = s;
-            pictureBox1.Image = bgCode.AdjImage ;
+            RotateImage(RotateFlipType.Rotate270FlipNone, true);
             autoZoomToolStripMenuItem_Click(this, null);
-            lblStatus.Text = "Done";
+        }
+        private void RotateImage(RotateFlipType r, Boolean changeRatio)
+        {
+            if (bgCode.OrgImage == null) return;//if no image, do nothing
+            SetStatus("Rotating...");
+            bgCode.RotateFlip(r);
+            UpdateImage(changeRatio);
+            SetStatus("Done");
         }
         //Invert image color
         private void btnInvert_Click(object sender, EventArgs e)
         {
             if (bgCode.OrgImage == null) return;//if no image, do nothing
+            SetStatus("Invert Image...");
             pictureBox1.Image = bgCode.InvertImage();
+            SetStatus("Done");
+            UpdateImage(false);
         }
 
         private void cbDirthering_SelectedIndexChanged(object sender, EventArgs e)
@@ -717,9 +691,9 @@ namespace _3dpBurnerImage2Gcode
             if (bgCode.OrgImage == null) return;//if no image, do nothing
             if (cbDirthering.Text == "Dirthering FS 1 bit")
             {
-                lblStatus.Text = "Dirthering...";
+                SetStatus("Dirthering...");
                 pictureBox1.Image = bgCode.DirtherImage();
-                lblStatus.Text = "Done";
+                SetStatus("Done");
             }
             else
                 userAdjust();
@@ -799,8 +773,7 @@ namespace _3dpBurnerImage2Gcode
             {
                 if (openFileDialog1.ShowDialog() == DialogResult.Cancel) return;//if no image, do nothing
                 if (!File.Exists(openFileDialog1.FileName)) return;
-                lblStatus.Text = "Opening file...";
-                Refresh();
+                SetStatus( "Opening file...");
                 if (bgCode.ResetImage != null)
                 {
                     bgCode.ResetImage = null;
@@ -815,7 +788,7 @@ namespace _3dpBurnerImage2Gcode
                 ratio = (bgCode.xSize + 0.0f) / bgCode.ySize;//Save ratio for future use if needled
                 if (cbLockRatio.Checked) tbHeight.Text = Convert.ToString((Convert.ToSingle(tbWidth.Text) / ratio), CultureInfo.InvariantCulture.NumberFormat);//Initialize y size
                 userAdjust();
-                lblStatus.Text = "Done";
+                SetStatus("Done");
             }
             catch (Exception err)
             {
@@ -833,9 +806,22 @@ namespace _3dpBurnerImage2Gcode
             saveSettings();
         }
 
-
-
-
+        private void SetStatus(string message)
+        {
+            lblStatus.Text = message;
+            Refresh();
+        }
+        private void UpdateImage(Boolean changeRatio)
+        {
+            pictureBox1.Image = bgCode.AdjImage;
+            if (changeRatio)
+            {
+                ratio = 1 / ratio;
+                string s = tbHeight.Text;
+                tbHeight.Text = tbWidth.Text;
+                tbWidth.Text = s;
+            }
+        }
 
 
 
