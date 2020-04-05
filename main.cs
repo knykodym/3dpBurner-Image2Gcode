@@ -32,13 +32,13 @@ using System.Runtime.InteropServices;
 
 namespace _3dpBurnerImage2Gcode
 {
-    public partial class Form1 : Form
+    public partial class main : Form
     {
         const string ver = "v0.1";
         Bitmap originalImage;
         Bitmap adjustedImage;
         float lastValue;//Aux for apply processing to image only when a new value is detected
-        public Form1()
+        public main()
         {
             InitializeComponent();
         }
@@ -920,7 +920,7 @@ namespace _3dpBurnerImage2Gcode
         //About dialog
         private void aboutToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Form2 frmAbout = new Form2();
+            about frmAbout = new about();
             frmAbout.ShowDialog();
         }
         //Preview AutoZoom

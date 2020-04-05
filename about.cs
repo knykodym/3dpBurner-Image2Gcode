@@ -9,9 +9,9 @@ using System.Windows.Forms;
 
 namespace _3dpBurnerImage2Gcode
 {
-    public partial class Form2 : Form
+    public partial class about : Form
     {
-        public Form2()
+        public about()
         {
             InitializeComponent();
         }

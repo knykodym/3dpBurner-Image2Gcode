@@ -73,3 +73,6 @@ packages/
 !/bin/Release
 /bin/release/*
 !/bin/Release/3dpBurner Image2Gcode.exe
+/.vs/3dpBurnerImage2Gcode/v16/TestStore/0
+/.vs/3dpBurner-Image2Gcode/v16/TestStore/0
+/.vs
