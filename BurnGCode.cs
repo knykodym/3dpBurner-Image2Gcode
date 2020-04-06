@@ -16,8 +16,8 @@ namespace _3dpBurnerImage2Gcode
         public int Gamma { get; set; }
         public string GammaText => Convert.ToString(Gamma / 100.0f);
         public string Dirthering { get; set; }
-        public int xSize { get; set; }
-        public int ySize { get; set; }
+        public int XSize { get; set; }
+        public int YSize { get; set; }
         private Bitmap orgImage;
         public Bitmap OrgImage
         {
@@ -34,8 +34,8 @@ namespace _3dpBurnerImage2Gcode
         private void SetImage(Bitmap value)
         {
             orgImage = value;
-            xSize = orgImage.Width;
-            ySize = orgImage.Height;
+            XSize = orgImage.Width;
+            YSize = orgImage.Height;
             if(resetImage == null)
             {
                 resetImage = value;
@@ -103,7 +103,7 @@ namespace _3dpBurnerImage2Gcode
         public Bitmap GrayscaleImage()
         {
             if (orgImage == null) return null;
-            Bitmap newBitmap = new Bitmap(xSize, ySize);//create a blank bitmap the same size as original
+            Bitmap newBitmap = new Bitmap(XSize, YSize);//create a blank bitmap the same size as original
             Graphics g = Graphics.FromImage(newBitmap);//get a graphics object from the new image
             //create the gray scale ColorMatrix
             ColorMatrix colorMatrix = new ColorMatrix(
@@ -119,8 +119,8 @@ namespace _3dpBurnerImage2Gcode
             attributes.SetColorMatrix(colorMatrix);//set the color matrix attribute
 
             //draw the original image on the new image using the gray scale color matrix
-            g.DrawImage(orgImage, new Rectangle(0, 0, xSize, ySize),
-               0, 0, xSize, ySize, GraphicsUnit.Pixel, attributes);
+            g.DrawImage(orgImage, new Rectangle(0, 0, XSize, YSize),
+               0, 0, XSize, YSize, GraphicsUnit.Pixel, attributes);
             g.Dispose();//dispose the Graphics object
             orgImage = newBitmap;
             return (newBitmap);
@@ -128,7 +128,7 @@ namespace _3dpBurnerImage2Gcode
         public Bitmap InvertImage()
         {
             if (orgImage == null) return null;
-            Bitmap newBitmap = new Bitmap(xSize, ySize);//create a blank bitmap the same size as original
+            Bitmap newBitmap = new Bitmap(XSize, YSize);//create a blank bitmap the same size as original
             Graphics g = Graphics.FromImage(newBitmap);//get a graphics object from the new image
             //create the gray scale ColorMatrix
             ColorMatrix colorMatrix = new ColorMatrix(
@@ -144,8 +144,8 @@ namespace _3dpBurnerImage2Gcode
             attributes.SetColorMatrix(colorMatrix);//set the color matrix attribute
             
             //draw the original image on the new image using the gray scale color matrix
-            g.DrawImage(orgImage, new Rectangle(0, 0, xSize, ySize),
-               0, 0, xSize, ySize, GraphicsUnit.Pixel, attributes);
+            g.DrawImage(orgImage, new Rectangle(0, 0, XSize, YSize),
+               0, 0, XSize, YSize, GraphicsUnit.Pixel, attributes);
             g.Dispose();//dispose the Graphics object
             orgImage = newBitmap;
             return newBitmap;
@@ -186,7 +186,7 @@ namespace _3dpBurnerImage2Gcode
             if (orgImage == null) return null;
             //Resize
             Bitmap output;
-            output = new Bitmap(orgImage, new Size(xSize, ySize));
+            output = new Bitmap(orgImage, new Size(XSize, YSize));
             orgImage = output;
             return output;
         }
@@ -194,13 +194,13 @@ namespace _3dpBurnerImage2Gcode
         private Bitmap AdjustImage()
         {           
             if (orgImage == null) return null;//if no image, do nothing
-            Bitmap adjustedImage = ResizeImage();
-            //Apply balance to adjusted (resized) image
-            adjustedImage = BalanceImage();
+            ResizeImage();
+       
             //Reset dirthering to adjusted (resized and balanced) image
             Dirthering = "GrayScale 8 bit";
-            //Display image
-            return adjustedImage;
+         
+            //Apply balance to adjusted (resized) image
+            return BalanceImage();
         }
 
         public void RotateFlip(RotateFlipType r)
